@@ -54,6 +54,7 @@ public class Robot extends IterativeRobot {
 
 	Joystick mainDriverStick;
 	//Joystick driveRightStick;
+	Joystick guestStick;
 	Joystick manipulatorStick;
 
 	AnalogGyro driveGyro;
@@ -76,6 +77,7 @@ public class Robot extends IterativeRobot {
 	boolean isGyroresetTelop;
 	boolean agitatorUp;
 	boolean genericTimerStarted;
+	boolean guestControl;
 	int autoState;
 	int gearCatcherState;
 	int shootFuelState;
@@ -111,7 +113,8 @@ public class Robot extends IterativeRobot {
 
 		mainDriverStick = new Joystick( 0 );
 		//driveRightStick = new Joystick ( 1 );
-		manipulatorStick = new Joystick( 1 );
+		guestStick = new Joystick( 1 );
+		manipulatorStick = new Joystick( 2 );
 
 		driveGyro = new AnalogGyro( 0 );
 		wallDistanceSensorS = new AnalogInput( 3 );
@@ -326,6 +329,31 @@ public class Robot extends IterativeRobot {
 			}
 		}
 	}
+	
+	void guestDrive(double guestThrottle2, boolean arcadeStyle)
+	{	
+		if (arcadeStyle) {
+			double x = guestStick.getX();
+			double y = guestStick.getX()*guestThrottle2;
+			double right = y-x;
+			double left = y+x;
+			leftDriveMotor.set(left);
+			rightDriveMotor.set(-right);
+		}
+		else {
+			double right = guestStick.getY();
+			double left = guestStick.getThrottle();
+
+			//Cut speed in half
+			if(guestStick.getRawButton(7))
+			{
+				right /= 2.0;
+				left /= 2.0;
+			}
+			leftDriveMotor.set(left);
+			rightDriveMotor.set(-right);
+		}
+	}
 
 	/*
 	 * Spin shooter wheels up to speed with door closed.
@@ -428,16 +456,16 @@ public class Robot extends IterativeRobot {
 		double angleBoilerFoundDeg = 0.0;
 		double sVel = 0.0;
 
-		if(manipulatorStick.getY() > 0.1 || manipulatorStick.getY() < -0.1)
+		/*if(manipulatorStick.getY() > 0.1 || manipulatorStick.getY() < -0.1)
 		{
-			/*
+			
 			if(spinShooterWheels(manipulatorStick.getY() * 3600.0, manipulatorStick.getY() * 3400.0))
 				shooterServo.set(SERVO_UP);
 			else
 				shooterServo.set(SERVO_DOWN);
-			 */
-		}
-		else if(manipulatorStick.getRawButton(1) || manipulatorStick.getRawButton(2))
+		
+		}*/
+		/*else if(manipulatorStick.getRawButton(1) || manipulatorStick.getRawButton(2))
 		{
 			stoleDriveTrainControl = true;
 			switch(shootFuelState)
@@ -496,8 +524,8 @@ public class Robot extends IterativeRobot {
 					stopShooter();
 					break;
 			}
-		}
-		else if(manipulatorStick.getRawButton(2))
+		}*/
+		if(manipulatorStick.getRawButton(2) || mainDriverStick.getRawButton(2))
 		{
 			shootFuel(false, 3200.0, 3200.0);	//For manual emergency
 		}
@@ -514,7 +542,23 @@ public class Robot extends IterativeRobot {
 			agitatorTimer.start();
 		}
 	}
+	void guestShootFuelControl() {
+		if (guestControl && mainDriverStick.getRawButton(2) && guestStick.getRawButton(2)) {
+			shootFuel(false, 3200.0, 3200.0);	//For manual emergency
+		}
+		else
+		{
+			//Stop shooting
+			stopShooter();
 
+			shootFuelState = 0;
+			stoleDriveTrainControl = false;
+
+			agitatorUp = false;
+			agitatorTimer.reset();
+			agitatorTimer.start();
+		}
+	}
 	/*
 	 * Simple manual gear catcher control using manipulator stick X axis
 	 */
@@ -528,11 +572,11 @@ public class Robot extends IterativeRobot {
 		}
 		else
 		{
-			if(manipulatorStick.getRawButton(5) && gearCatcherLimitLeft.get())
+			if((manipulatorStick.getRawButton(5) || mainDriverStick.getRawButton(5)) && gearCatcherLimitLeft.get())
 			{
 				gearCatcherScrew.set(0.7);
 			}
-			else if(manipulatorStick.getRawButton(6) && gearCatcherLimitRight.get())
+			else if((manipulatorStick.getRawButton(6) || mainDriverStick.getRawButton(6)) && gearCatcherLimitRight.get())
 			{
 				gearCatcherScrew.set(-0.7);
 			}
@@ -1501,25 +1545,35 @@ public class Robot extends IterativeRobot {
 	}
 
 	/*
-	 * Runs the motors with arcade steering.
+	 * Runs the motors with Tank steering.
 	 */
 	public void teleopPeriodic() {
-		//myRobot.SetSafetyEnabled(true);
-		driveGyro.reset();
-		while (isOperatorControl() && isEnabled())
-		{
-			if(!stoleDriveTrainControl && !stoleDriveTrainControl2)
+		if (mainDriverStick.getRawButton(8)) {
+			guestControl = false;
+			//myRobot.SetSafetyEnabled(true);
+			driveGyro.reset();
+			while (isOperatorControl() && isEnabled())
+			{
+				if(!stoleDriveTrainControl && !stoleDriveTrainControl2)
 				tankDrive();
-			shootFuelControl();
-			controlGearCatcher();
-			controlBallIntake();
-			takeOverDrive();
-			updateDashboard();
-
-			calculateShotSpeedBasedOnDistance();
-			// Wait for a motor update time
-			Timer.delay(0.005);
-			
+				shootFuelControl();
+				controlGearCatcher();
+				controlBallIntake();
+				takeOverDrive();
+				updateDashboard();
+				
+				calculateShotSpeedBasedOnDistance();
+				// Wait for a motor update time
+				Timer.delay(0.005);
+				
+			}
+		}else if(mainDriverStick.getRawButton(10)) {
+			guestControl = true;
+			guestDrive(.5, false);
+			guestShootFuelControl();
+		}
+		else {
+			guestControl = false;
 		}
 	}
 
