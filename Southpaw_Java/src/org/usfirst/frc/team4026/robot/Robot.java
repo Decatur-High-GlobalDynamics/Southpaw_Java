@@ -1,6 +1,9 @@
 package org.usfirst.frc.team4026.robot;
 
 
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.DoubleSolenoid.Value;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -92,10 +95,17 @@ public class Robot extends IterativeRobot {
 	String autoNameGear2 = "Gear Location 2";
 	String autoNameGear3 = "Gear Location 3";
 	String autoNameTwoHopper = "Two Hopper";
-
+	
+	
+	static NetworkTableInstance inst;
+	NetworkTable operatorTable;
+	NetworkTableEntry gotCubeEntry;
 
 
 	public void robotInit() {
+		inst = NetworkTableInstance.getDefault();
+		operatorTable = inst.getTable("operator");
+		gotCubeEntry = operatorTable.getEntry("gotCube");
 		rightDriveMotor = new VictorSP( 0 );
 		leftDriveMotor = new VictorSP(1);
 		shooterWheelFront = new WPI_TalonSRX( 1 );
@@ -525,9 +535,11 @@ public class Robot extends IterativeRobot {
 					break;
 			}
 		}*/
-		if(manipulatorStick.getRawButton(2) || mainDriverStick.getRawButton(2))
+		if(manipulatorStick.getRawButton(2) || mainDriverStick.getRawButton(4))
 		{
-			shootFuel(false, 3200.0, 3200.0);	//For manual emergency
+			shooterWheelFront.set(-.65);
+			shooterWheelBack.set(.65);
+			//shootFuel(false, 3200.0, 3200.0);	//For manual emergency
 		}
 		else
 		{
@@ -543,7 +555,7 @@ public class Robot extends IterativeRobot {
 		}
 	}
 	void guestShootFuelControl() {
-		if (guestControl && mainDriverStick.getRawButton(2) && guestStick.getRawButton(2)) {
+		if (mainDriverStick.getRawButton(4) && guestStick.getRawButton(4)) {
 			shootFuel(false, 3200.0, 3200.0);	//For manual emergency
 		}
 		else
@@ -572,11 +584,11 @@ public class Robot extends IterativeRobot {
 		}
 		else
 		{
-			if((manipulatorStick.getRawButton(5) || mainDriverStick.getRawButton(5)) && gearCatcherLimitLeft.get())
+			if((manipulatorStick.getRawButton(5) || mainDriverStick.getPOV() == 6) && gearCatcherLimitLeft.get())
 			{
 				gearCatcherScrew.set(0.7);
 			}
-			else if((manipulatorStick.getRawButton(6) || mainDriverStick.getRawButton(6)) && gearCatcherLimitRight.get())
+			else if((manipulatorStick.getRawButton(6) || mainDriverStick.getPOV() == 2) && gearCatcherLimitRight.get())
 			{
 				gearCatcherScrew.set(-0.7);
 			}
@@ -1548,11 +1560,11 @@ public class Robot extends IterativeRobot {
 	 * Runs the motors with Tank steering.
 	 */
 	public void teleopPeriodic() {
-		if (mainDriverStick.getRawButton(8)) {
+		if (mainDriverStick.getRawButton(6)) {
 			guestControl = false;
 			//myRobot.SetSafetyEnabled(true);
 			driveGyro.reset();
-			while (isOperatorControl() && isEnabled())
+			while (isOperatorControl() && isEnabled() && mainDriverStick.getRawButton(6))
 			{
 				if(!stoleDriveTrainControl && !stoleDriveTrainControl2)
 				tankDrive();
@@ -1561,22 +1573,35 @@ public class Robot extends IterativeRobot {
 				controlBallIntake();
 				takeOverDrive();
 				updateDashboard();
-				
-				calculateShotSpeedBasedOnDistance();
+				//calculateShotSpeedBasedOnDistance();
 				// Wait for a motor update time
 				Timer.delay(0.005);
+				gotCubeEntry.forceSetBoolean(true);
 				
 			}
 		}else if(mainDriverStick.getRawButton(10)) {
 			guestControl = true;
 			guestDrive(.5, false);
 			guestShootFuelControl();
+			gotCubeEntry.forceSetBoolean(false);
 		}
 		else {
 			guestControl = false;
+			stopRobotDrive();
+			stopShooter();
+			gotCubeEntry.forceSetBoolean(false);
+
 		}
 	}
-
+	@Override
+	public void robotPeriodic() {
+		SmartDashboard.putBoolean("connected", inst.isConnected());
+		SmartDashboard.putBoolean("gotCube", gotCubeEntry.getBoolean(false));
+	}
+	@Override
+	public void disabledPeriodic() {
+		gotCubeEntry.forceSetBoolean(false);
+	}
 	/*
 	 * Runs during test mode
 	 */
